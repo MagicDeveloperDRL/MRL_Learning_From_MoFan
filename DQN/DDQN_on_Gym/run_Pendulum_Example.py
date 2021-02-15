@@ -2,8 +2,7 @@ import gym
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import numpy as np
-from MRL_Learning_From_MoFan.DDQN_on_Gym.Agent_DDQN import Agent_DDQN
-from MRL_Learning_From_MoFan.DDQN_on_Gym.Agent_DDQN import DoubleDQN
+from DQN.DDQN_on_Gym.Agent_DDQN import Agent_DDQN
 
 MEMORY_SIZE = 3000
 ACTION_SPACE = 11

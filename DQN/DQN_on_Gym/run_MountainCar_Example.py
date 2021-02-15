@@ -1,5 +1,5 @@
 import gym
-from MRL_Learning_From_MoFan.DQN_on_Maze.Agent_DQN import  Agent_DQN
+from DQN.DQN_on_Maze.Agent_DQN import  Agent_DQN
 
 # 在Gym环境下运行DQN算法的训练算法
 def run_DQN_on_Gym():

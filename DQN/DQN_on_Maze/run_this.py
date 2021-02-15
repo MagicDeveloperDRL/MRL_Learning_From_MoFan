@@ -1,5 +1,5 @@
-from MRL_Learning_From_MoFan.DQN_on_Maze.maze_env import Maze
-from MRL_Learning_From_MoFan.DQN_on_Maze.Agent_DQN import Agent_DQN
+from DQN.DQN_on_Maze.maze_env import Maze
+from DQN.DQN_on_Maze.Agent_DQN import Agent_DQN
 
 
 # 在Maze环境下运行DQN算法的训练算法
