@@ -1,11 +1,19 @@
+"""
+@file: Maze_Agent.py
+@author: MRL Liu
+@time: 2021/2/19 17:45
+@env: Python,Numpy
+@desc:
+@ref:
+@blog: https://blog.csdn.net/qq_41959920
+"""
 import  numpy as np
-import tensorflow as tf
-
+import tensorflow as tf # 使用tf来构建神经网络
+import matplotlib.pyplot as plt
 np.random.seed(1)
 tf.set_random_seed(1)
 
-# 使用DQN算法的Agent
-class Agent_DQN:
+class Maze_Agent_DQN:
     # 初始化参数
     def __init__(
             self,
@@ -52,7 +60,7 @@ class Agent_DQN:
         # 存储损失
         self.cost_his = []
     # 选择动作(epsilon greedy)
-    def choose_Action(self,s):
+    def choose_action(self,s):
         # 将一维数组转换为二维数组，虽然只有一行
         s = s[np.newaxis,:]
 
@@ -63,43 +71,40 @@ class Agent_DQN:
             action = np.random.randint(0,self.n_actions)
         return action
     # 学习策略
-    def learn_from_step(self):
+    def learn(self):
         # 检查是否复制参数给target_net
+        self.learn_step_counter += 1
         if self.learn_step_counter % self.replace_target_iter == 0:
             self.Session.run(self.replace_target_op)
             print('\ntarget_net的参数被更新\n')
         # 获取采样数据
-        batch_memory = self.pick_from_memory(batch_size=self.batch_size)
+        batch_data = self.pick_from_memory(batch_size=self.batch_size)
         # 像两个神经网络中输入观测值获取对应的动作价值，输出为行数为采样个数，列数为动作数的矩阵
-        q_next, q_eval= self.Session.run(
-            fetches=[self.q_next,self.q_eval],
+        q_eval,q_next = self.Session.run(
+            fetches=[self.q_eval,self.q_next],
             feed_dict = {
-                self.s_: batch_memory[:, -self.n_features:],
-                self.s:batch_memory[:,:self.n_features]
+                self.s:batch_data[:,:self.n_features],
+                self.s_:batch_data[:,-self.n_features:]
             })
         # 获取立即回报
         q_target = q_eval.copy()
         # 获取采样数据的索引，要修改的矩阵的行
         batch_index = np.arange(self.batch_size,dtype=np.int32)
         # 获取评估的动作的索引，要修改的矩阵的列
-        eval_act_index = batch_memory[:,self.n_features].astype(int)
+        eval_act_index = batch_data[:,self.n_features].astype(int)
         # 获取要修改Q值的立即回报
-        reward = batch_memory[:, self.n_features + 1]
-
+        reward = batch_data[:, self.n_features + 1]
         # 计算Q现实值，只修改矩阵中对应状态动作的Q值
         q_target[batch_index,eval_act_index] = reward+self.gamma*np.max(q_next,axis=1)
-
         # 进行优化
         _,self.cost = self.Session.run(fetches=[self.train_step,self.loss],
                                 feed_dict={
-                                    self.s: batch_memory[:,:self.n_features],
+                                    self.s: batch_data[:,:self.n_features],
                                 self.q_target:q_target})
         # 存储损失值
         self.cost_his.append(self.cost)
-        # 逐步提高的利用概率,让算法尽快收敛的编程技巧
+        # 逐步提高的利用概率
         self.epsilon = self.epsilon + self.epsilon_increment if self.epsilon < self.epsilon_max else self.epsilon_max
-
-        self.learn_step_counter += 1
         return
     # 初始化记忆池
     def init_memory(self):
@@ -198,10 +203,7 @@ class Agent_DQN:
                 self.q_next = tf.matmul(layer_1, w2) + b2
     # 显示图
     def plot_cost(self):
-        import matplotlib.pyplot as plt
         plt.plot(np.arange(len(self.cost_his)), self.cost_his)
         plt.ylabel('Cost')
         plt.xlabel('training steps')
         plt.show()
-
-

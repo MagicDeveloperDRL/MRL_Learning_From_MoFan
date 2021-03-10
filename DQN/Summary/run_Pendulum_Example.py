@@ -1,3 +1,12 @@
+'''''''''
+@file: run_this.py
+@author: MRL Liu
+@time: 2021/3/10 21:33
+@env: Python,Numpy
+@desc:
+@ref:
+@blog: https://blog.csdn.net/qq_41959920
+'''''''''
 import gym
 import tensorflow as tf
 import matplotlib.pyplot as plt
@@ -12,6 +21,8 @@ def train(agent):
     total_step = 0
     observation = env.reset()
     while True:
+        # 刷新环境
+        #env.render()
         action = agent.choose_Action(observation)
 
         f_action = (action - (ACTION_SPACE - 1) / 2) / ((ACTION_SPACE - 1) / 4)  # convert to [-2 ~ 2] float actions
