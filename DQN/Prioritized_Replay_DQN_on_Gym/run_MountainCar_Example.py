@@ -32,15 +32,15 @@ def train(RL):
 
             if done: reward = 10
 
-            RL.store_transition(observation, action, reward, observation_)
+            RL.store_in_memory(observation, action, reward, observation_)
 
             if total_steps > MEMORY_SIZE:
                 RL.learn()
 
             if done:
                 print('episode ', i_episode, ' finished')
-                steps.append(total_steps)
-                episodes.append(i_episode)
+                steps.append(total_steps)# 记录步数
+                episodes.append(i_episode)# 记录回合数
                 break
 
             observation = observation_

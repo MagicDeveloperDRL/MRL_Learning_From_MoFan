@@ -25,7 +25,6 @@ class Agent_Dueling_DQN(object):
                  batch_size=32,
                  e_greedy_increment=None,
                  output_graph=False,
-                 dueling=True,
                  sess=None,
                  ):
         self.n_actions = n_actions
@@ -38,11 +37,9 @@ class Agent_Dueling_DQN(object):
         self.batch_size = batch_size
         self.epsilon_increment = e_greedy_increment
         self.epsilon = 0 if e_greedy_increment is not None else self.epsilon_max
-
-        self.dueling = dueling  # decide to use dueling DQN or not
         # 初始化记忆池
         self.init_memory()
-        #self._build_net()
+        # 初始化网络
         self.init_eval_net()
         self.init_target_net()
         # 定时复制参数给target_net
@@ -60,15 +57,28 @@ class Agent_Dueling_DQN(object):
         if output_graph:
             tf.summary.FileWriter("logs/", self.sess.graph)
         # 存储损失
-        self.cost_his = []
+        self.cost_his = []  # 存储历史损失
+        self.q_his = []  # 记录agent的动作价值
+        self.running_q = 0
 
-    def choose_action(self, observation):
-        observation = observation[np.newaxis, :]
-        if np.random.uniform() < self.epsilon:  # choosing action
-            actions_value = self.sess.run(self.q_eval, feed_dict={self.s: observation})
-            action = np.argmax(actions_value)
-        else:
+    def choose_action(self, s):
+        # 将一维数组转换为二维数组，虽然只有一行
+        s = s[np.newaxis, :]
+        # 获取评估的动作价值
+        action_values = self.sess.run(fetches=self.q_eval, feed_dict={self.s: s})
+
+        # 记录agent的动作价值，便于观测
+        if not hasattr(self, 'q_his'):
+            self.q_his = []
+            self.running_q = 0
+        self.running_q = self.running_q * 0.99 + 0.01 * np.max(action_values)
+        self.q_his.append(self.running_q)
+
+        # greedy策略
+        if np.random.uniform() > self.epsilon:  # 随机选择一个动作
             action = np.random.randint(0, self.n_actions)
+        else:  # 选择最好动作
+            action = np.argmax(action_values)
         return action
 
     # 初始化记忆池
@@ -97,22 +107,21 @@ class Agent_Dueling_DQN(object):
             self.sess.run(self.replace_target_op)
             print('\ntarget_net的参数被更新\n')
 
-
+        # 获取采样数据
         batch_memory =self.pick_from_memory(batch_size=self.batch_size)
 
         q_next = self.sess.run(self.q_next, feed_dict={self.s_: batch_memory[:, -self.n_features:]}) # next observation
-        q_eval = self.sess.run(self.q_eval, {self.s: batch_memory[:, :self.n_features]})
+        q_eval = self.sess.run(self.q_eval, feed_dict={self.s: batch_memory[:, :self.n_features]})
 
         q_target = q_eval.copy()
-        print("q_next.shape:",q_next.shape)
-        print("q_target.shape:", q_target.shape)
+
         batch_index = np.arange(self.batch_size, dtype=np.int32)
         eval_act_index = batch_memory[:, self.n_features].astype(int)
-        print("eval_act_index:", eval_act_index.shape)
-        reward = batch_memory[:, self.n_features + 1]
-        print()
-        q_target[batch_index, eval_act_index] = reward + self.gamma * np.max(q_next, axis=1)
 
+        reward = batch_memory[:, self.n_features + 1]
+
+        q_target[batch_index, eval_act_index] = reward + self.gamma * np.max(q_next, axis=1)
+        # 进行优化
         _, self.cost = self.sess.run([self._train_op, self.loss],
                                      feed_dict={self.s: batch_memory[:, :self.n_features],
                                                 self.q_target: q_target})
@@ -120,7 +129,7 @@ class Agent_Dueling_DQN(object):
 
         self.epsilon = self.epsilon + self.epsilon_increment if self.epsilon < self.epsilon_max else self.epsilon_max
         self.learn_step_counter += 1
-
+        return
     # 初始化网络
     def init_eval_net(self):
         # 定义网络的输入输出
@@ -161,46 +170,33 @@ class Agent_Dueling_DQN(object):
                                  initializer=b_initializer,
                                  collections=c_names)
             layer_1 = tf.nn.relu(tf.matmul(input, w1) + b1)
-        # 定义L2
-        if self.dueling:
-            # Dueling DQN
-            with tf.variable_scope('Value'):
-                w2 = tf.get_variable(name='w2',
-                                     shape=[n_Layer, 1],
-                                     initializer=w_initializer,
-                                     collections=c_names)
-                b2 = tf.get_variable(name='b2',
-                                     shape=[1, 1],
-                                     initializer=b_initializer,
-                                     collections=c_names)
-                self.V = tf.matmul(layer_1, w2) + b2 #shape=(?,1)
 
-            with tf.variable_scope('Advantage'):
-                w2 = tf.get_variable(name='w2',
-                                     shape=[n_Layer, self.n_actions],
-                                     initializer=w_initializer,
-                                     collections=c_names)
-                b2 = tf.get_variable(name='b2',
-                                     shape=[1, self.n_actions],
-                                     initializer=b_initializer,
-                                     collections=c_names)
-                self.A = tf.matmul(layer_1, w2) + b2 #shape=(?,self.n_actions)
+        # Dueling DQN
+        with tf.variable_scope('Value'):
+            w2 = tf.get_variable(name='w2',
+                                 shape=[n_Layer, 1],
+                                 initializer=w_initializer,
+                                 collections=c_names)
+            b2 = tf.get_variable(name='b2',
+                                 shape=[1, 1],
+                                 initializer=b_initializer,
+                                 collections=c_names)
+            self.V = tf.matmul(layer_1, w2) + b2 #shape=(?,1)
 
-            with tf.variable_scope('Q'):
-                # out.shape=(?,self.n_actions),虽然self.A和self.V的维度不相同，但是这里会触发numpy的一个广播机制来进行计算
-                out = self.V + (self.A - tf.reduce_mean(self.A, axis=1, keep_dims=True))  # Q = V(s) + A(s,a)
-        else:   #shape=(?,self.n_actions)
-            # 一个普通的全连接层
-            with tf.variable_scope('layer_2'):
-                w2 = tf.get_variable(name='w2',
-                                     shape=[n_Layer, self.n_actions],
-                                     initializer=w_initializer,
-                                     collections=c_names)
-                b2 = tf.get_variable(name='b2',
-                                     shape=[1, self.n_actions],
-                                     initializer=b_initializer,
-                                     collections=c_names)
-                out = tf.matmul(layer_1, w2) + b2 #shape=(?,self.n_actions)
+        with tf.variable_scope('Advantage'):
+            w2 = tf.get_variable(name='w2',
+                                 shape=[n_Layer, self.n_actions],
+                                 initializer=w_initializer,
+                                 collections=c_names)
+            b2 = tf.get_variable(name='b2',
+                                 shape=[1, self.n_actions],
+                                 initializer=b_initializer,
+                                 collections=c_names)
+            self.A = tf.matmul(layer_1, w2) + b2 #shape=(?,self.n_actions)
+
+        with tf.variable_scope('Q'):
+            # out.shape=(?,self.n_actions),虽然self.A和self.V的维度不相同，但是这里会触发numpy的一个广播机制来进行计算
+            out = self.V + (self.A - tf.reduce_mean(self.A, axis=1, keep_dims=True))  # Q = V(s) + A(s,a)
 
         return out
 

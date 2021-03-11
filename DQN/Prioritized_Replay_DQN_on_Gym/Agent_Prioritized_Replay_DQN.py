@@ -155,7 +155,12 @@ class Agent_Prioritized_Replay_DQN:
         self.epsilon = 0 if e_greedy_increment is not None else self.epsilon_max
 
         self.prioritized = prioritized    # decide to use double q or not
-
+        # 初始化记忆池
+        if self.prioritized:
+            self.memory = Memory(capacity=memory_size)
+        else:
+            self.memory = np.zeros((self.memory_size, n_features * 2 + 2))
+            # self.memory = self.init_memory()
         # 初始化网络
         self.init_eval_net()
         self.init_target_net()
@@ -164,12 +169,7 @@ class Agent_Prioritized_Replay_DQN:
         t_params = tf.get_collection('target_net_params')
         e_params = tf.get_collection('eval_net_params')
         self.replace_target_op = [tf.assign(t, e) for t, e in zip(t_params, e_params)]
-        # 初始化记忆池
-        if self.prioritized:
-            self.memory = Memory(capacity=memory_size)
-        else:
-            self.memory = np.zeros((self.memory_size, n_features * 2 + 2))
-            #self.memory = self.init_memory()
+
         # 初始化会话
         if sess is None:
             self.sess = tf.Session()
@@ -179,12 +179,14 @@ class Agent_Prioritized_Replay_DQN:
         # 是否输出图
         if output_graph:
             tf.summary.FileWriter("logs/", self.sess.graph)
-        # 存储损失
-        self.cost_his = []
+        # 存储历史检测数据
+        self.cost_his = []  # 存储历史损失
+        self.q_his = []  # 记录agent的动作价值
+        self.running_q = 0
 
 
 
-    def store_transition(self, s, a, r, s_):
+    def store_in_memory(self, s, a, r, s_):
         if self.prioritized:    # prioritized replay
             transition = np.hstack((s, [a, r], s_))
             self.memory.store(transition)    # have high priority for newly arrived transition
@@ -196,13 +198,24 @@ class Agent_Prioritized_Replay_DQN:
             self.memory[index, :] = transition
             self.memory_counter += 1
 
-    def choose_action(self, observation):
-        observation = observation[np.newaxis, :]
-        if np.random.uniform() < self.epsilon:
-            actions_value = self.sess.run(self.q_eval, feed_dict={self.s: observation})
-            action = np.argmax(actions_value)
-        else:
+    def choose_action(self, s):
+        # 将一维数组转换为二维数组，虽然只有一行
+        s = s[np.newaxis, :]
+        # 获取评估的动作价值
+        action_values = self.sess.run(fetches=self.q_eval, feed_dict={self.s: s})
+
+        # 记录agent的动作价值，便于观测
+        if not hasattr(self, 'q_his'):
+            self.q_his = []
+            self.running_q = 0
+        self.running_q = self.running_q * 0.99 + 0.01 * np.max(action_values)
+        self.q_his.append(self.running_q)
+
+        # greedy策略
+        if np.random.uniform() > self.epsilon:  # 随机选择一个动作
             action = np.random.randint(0, self.n_actions)
+        else:  # 选择最好动作
+            action = np.argmax(action_values)
         return action
 
     def learn(self):

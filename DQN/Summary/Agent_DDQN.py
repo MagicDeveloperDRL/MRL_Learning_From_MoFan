@@ -17,7 +17,6 @@ class Agent_DDQN(object):
             replace_target_iter=300,# 复制两个网络的间隔
             gamma=0.9, # 回报折扣因子
             output_graph = False, # 是否输出TensorBoard
-            double_q=True,
             sess=None,
     ):
         self.n_actions=n_actions
@@ -31,7 +30,6 @@ class Agent_DDQN(object):
         self.gamma = gamma
         self.memory_size = memory_size
         self.replace_target_iter = replace_target_iter
-        self.double_q = double_q
         # 初始化记忆池
         self.init_memory()
         # 初始化网络
@@ -54,26 +52,29 @@ class Agent_DDQN(object):
             # tf.train.SummaryWriter soon be deprecated, use following
             tf.summary.FileWriter("logs/", self.sess.graph)
 
-        # 存储损失
-        self.cost_his = []
-
-
+        # 存储历史检测数据
+        self.cost_his = []  # 存储历史损失
+        self.q_his = []  # 记录agent的动作价值
+        self.running_q = 0
     # 选择动作(epsilon greedy)
-    def choose_Action(self,s):
+    def choose_action(self,s):
         # 将一维数组转换为二维数组，虽然只有一行
         s = s[np.newaxis, :]
+        # 获取评估的动作价值
         action_values = self.sess.run(fetches=self.q_eval, feed_dict={self.s: s})
-        action = np.argmax(action_values)
 
-        if not hasattr(self, 'q'):  # record action value it gets
-            self.q = []
+        # 记录agent的动作价值，便于观测
+        if not hasattr(self, 'q_his'):
+            self.q_his = []
             self.running_q = 0
         self.running_q = self.running_q*0.99 + 0.01 * np.max(action_values)
-        self.q.append(self.running_q)
+        self.q_his.append(self.running_q)
 
-        if np.random.uniform() > self.epsilon:
+        # greedy策略
+        if np.random.uniform() > self.epsilon:# 随机选择一个动作
             action = np.random.randint(0, self.n_actions)
-
+        else:# 选择最好动作
+            action = np.argmax(action_values)
         return action
 
     # 学习策略
@@ -106,11 +107,11 @@ class Agent_DDQN(object):
         # 获取要修改Q值的立即回报
         reward = batch_memory[:, self.n_features + 1]
 
-        if self.double_q:# DDQN的计算方法
-            max_act4next =np.argmax(q_eval4next,axis=1)
-            selected_q_next = q_next[batch_index,max_act4next]
-        else:# Nature DQN的计算方法
-            selected_q_next = np.max(q_next,axis=1)
+        # DDQN的计算方法
+        max_act4next =np.argmax(q_eval4next,axis=1)
+        selected_q_next = q_next[batch_index,max_act4next]
+        # Nature DQN的计算方法
+        #selected_q_next = np.max(q_next,axis=1)
         # 计算Q现实值，只修改矩阵中对应状态动作的Q值
         #print('q_target:', q_target)
         #print('q_target[batch_index, eval_act_index]:', q_target[batch_index, eval_act_index])
