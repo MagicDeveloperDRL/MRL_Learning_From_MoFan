@@ -32,7 +32,7 @@ class Agent_DQN:
     ):
         self.n_features = n_features
         self.n_actions = n_actions
-        self.learn_rate =learning_rate
+        self.learning_rate =learning_rate
         self.epsilon_increment = None
         self.epsilon_increment = e_greedy_increment
         self.epsilon_max = e_greedy
@@ -162,7 +162,7 @@ class Agent_DQN:
             with tf.variable_scope('loss'):
                 self.loss = tf.reduce_mean(tf.squared_difference(self.q_target, self.q_eval))
             with tf.variable_scope('train'):
-                self._train_op = tf.train.RMSPropOptimizer(self.learn_rate).minimize(self.loss)
+                self._train_op = tf.train.RMSPropOptimizer(self.learning_rate).minimize(self.loss)
 
     def init_target_net(self):
         # 定义网络的输入输出
