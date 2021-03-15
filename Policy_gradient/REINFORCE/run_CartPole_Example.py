@@ -17,21 +17,19 @@ TEST_ENV_NAME ='CartPole-v0'
 
 def train(agent,num_episode=3000,is_Render = False):
     for i_episode in range(num_episode):
-        running_reward = 0
-        observation = env.reset()
+        running_reward = 0 # 运行的回合奖励
+        observation = env.reset() # 初始化环境状态
 
         while True:
-            if is_Render: env.render()
-
-            action = agent.choose_action(observation)
-
-            observation_, reward, done, info = env.step(action)
-
-            agent.store_in_memory(observation, action, reward)
-
+            if is_Render: env.render() # 是否渲染环境
+            action = agent.choose_action(observation) # 选择动作
+            observation_, reward, done, info = env.step(action) # 获取反馈
+            agent.store_in_memory(observation, action, reward) # 存储
+            observation = observation_ # 切换观察值
             if done:
-                ep_rs_sum = sum(agent.ep_rs)
-
+                ep_rs_sum = sum(agent.ep_rs)#获取本回合的累计奖励
+                vt = agent.learn()  # 该训练回合结束时才开始学习
+                # 打印信息
                 if 'running_reward' not in globals():
                     running_reward = ep_rs_sum
                 else:
@@ -39,16 +37,15 @@ def train(agent,num_episode=3000,is_Render = False):
                 #if running_reward > DISPLAY_REWARD_THRESHOLD: is_Render = True  # rendering
                 print("episode:", i_episode, "  reward:", int(running_reward))
 
-                vt = agent.learn()
 
                 if i_episode == 0:
                     plt.plot(vt)  # plot the episode vt
                     plt.xlabel('episode steps')
-                    plt.ylabel('normalized state-action value')
+                    plt.ylabel('normalized state-action value') # 长期回报的值
                     plt.show()
                 break
 
-            observation = observation_
+
 
 
 if __name__=='__main__':
