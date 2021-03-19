@@ -51,8 +51,8 @@ class Agent_REINFORCE(object):
     def _build_net(self):
         with tf.name_scope('inputs'):
             self.tf_obs = tf.placeholder(tf.float32, [None, self.n_features], name="observations") # 网络输入
-            self.tf_acts = tf.placeholder(tf.int32, [None, ], name="actions_num") # 动作值
-            self.tf_vt = tf.placeholder(tf.float32, [None, ], name="actions_value") # 状态值
+            self.tf_acts = tf.placeholder(tf.int32, [None, ], name="actions") # 动作值
+            self.tf_vt = tf.placeholder(tf.float32, [None, ], name="reward") # 状态值
         # fc1 生成一个全连接层
         layer = tf.layers.dense(
             inputs=self.tf_obs, # 输入数据
@@ -73,8 +73,8 @@ class Agent_REINFORCE(object):
         )
 
         self.all_act_prob = tf.nn.softmax(all_act, name='act_prob')  # use softmax to convert to probability
-        print('self.all_act_prob.shape:',self.all_act_prob.shape) # shape=(?,2)
-        print('self.all_act_prob:', self.all_act_prob)
+        #print('self.all_act_prob.shape:',self.all_act_prob.shape) # shape=(?,2)
+        #print('self.all_act_prob:', self.all_act_prob)
         with tf.name_scope('loss'):
             # to maximize total reward (log_p * R) is to minimize -(log_p * R), and the tf only have minimize(loss)
             # 计算logits和labels之间的稀疏softmax交叉熵。
@@ -90,6 +90,9 @@ class Agent_REINFORCE(object):
     def choose_action(self, observation):
         prob_weights = self.sess.run(self.all_act_prob, feed_dict={self.tf_obs: observation[np.newaxis, :]})
         action = np.random.choice(range(prob_weights.shape[1]), p=prob_weights.ravel())  # select action w.r.t the actions prob
+        print('shape[1]:', prob_weights.shape[1]) # 2
+        print('ravel:', prob_weights.ravel())# 概率
+        print('action:',action)
         return action
 
     def store_in_memory(self, s, a, r):

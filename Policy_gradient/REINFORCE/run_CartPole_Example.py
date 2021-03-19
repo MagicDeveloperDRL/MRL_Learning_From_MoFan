@@ -15,9 +15,10 @@ DISPLAY_REWARD_THRESHOLD = 400  # renders environment if total episode reward is
 RENDER = False  # 是否渲染环境，渲染环境会使训练过程变慢
 TEST_ENV_NAME ='CartPole-v0'
 
-def train(agent,num_episode=3000,is_Render = False):
-    for i_episode in range(num_episode):
+def train(agent,max_episodes=3000,max_steps_each_episode=1000,is_Render = False):
+    for i_episode in range(max_episodes):
         running_reward = 0 # 运行的回合奖励
+        t_step = 0
         observation = env.reset() # 初始化环境状态
 
         while True:
@@ -26,7 +27,8 @@ def train(agent,num_episode=3000,is_Render = False):
             observation_, reward, done, info = env.step(action) # 获取反馈
             agent.store_in_memory(observation, action, reward) # 存储
             observation = observation_ # 切换观察值
-            if done:
+            t_step +=1
+            if done or t_step>=max_steps_each_episode:
                 ep_rs_sum = sum(agent.ep_rs)#获取本回合的累计奖励
                 vt = agent.learn()  # 该训练回合结束时才开始学习
                 # 打印信息
@@ -60,7 +62,7 @@ if __name__=='__main__':
 
     STATE_FEATURES = env.observation_space.shape[0]
     ACTION_SPACE = env.action_space.n
-
+    print("ACTION_SPACE:",ACTION_SPACE)
 
     agent = Agent_REINFORCE(
         n_features = STATE_FEATURES,
